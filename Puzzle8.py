@@ -1,3 +1,4 @@
+import tkinter as tk
 import heapq
 import random
 
@@ -15,10 +16,10 @@ class Puzzle8:
             self.board = fill
             return None
         list_of_nums = list(self.numbers)
-        for row in range(len(self.board)):
-            for column in range(len(self.board[0])):
+        for row in range(3):
+            for col in range(3):
                 item = random.choice(list_of_nums)  # Take a random value
-                self.board[row][column] = item  # Add the chosen value to the board
+                self.board[row][col] = item  # Add the chosen value to the board
                 list_of_nums.remove(item)  # Remove the chosen value from the list to avoid choosing it again
 
     def display_board(self):
@@ -83,7 +84,7 @@ class Puzzle8:
             path = []
             while current in came_from:
                 current, move = came_from[current]
-                path.append(self.undo_moves[move])
+                path.append(move)
             return path[::-1]
 
         start = tuple(tuple(row) for row in self.board)
@@ -141,22 +142,71 @@ class Puzzle8:
         return None
 
 
+class PuzzleGUI:
+    def __init__(self, root, puzzle: Puzzle8):
+        self.root = root
+        self.puzzle = puzzle
+        self.solution = puzzle.a_star()
+        while self.solution is None:
+            self.puzzle.fill_board()
+            self.puzzle.display_board()
+            self.solution = self.puzzle.a_star()
+        print(f'{len(self.solution) = }')
+        self.step_index = 0
+
+        self.buttons = [[None for _ in range(3)] for _ in range(3)]
+        for row in range(3):
+            for col in range(3):
+                button = tk.Button(root, text=self.puzzle.board[row][col], font=('Helvetica', 20), width=4, height=2)
+                button.grid(row=row, column=col)
+                self.buttons[row][col] = button
+
+        self.next_button = tk.Button(root, text="Next", command=self.next_step)
+        self.next_button.grid(row=3, column=2)
+        self.prev_button = tk.Button(root, text="Previous", command=self.prev_step)
+        self.prev_button.grid(row=3, column=0)
+        self.steps_label = tk.Label(root, text=f'{self.step_index}/{len(self.solution)}')
+        self.steps_label.grid(row=3, column=1)
+
+    def update_board(self):
+        for row in range(3):
+            for col in range(3):
+                self.buttons[row][col].config(text=self.puzzle.board[row][col])
+        self.steps_label.config(text=f'{self.step_index}/{len(self.solution)}')
+
+    def next_step(self):
+        if self.step_index < len(self.solution):
+            move = self.solution[self.step_index]
+            self.puzzle.move(move)
+            self.step_index += 1
+            self.update_board()
+
+    def prev_step(self):
+        if self.step_index > 0:
+            self.step_index -= 1
+            move = self.solution[self.step_index]
+            self.puzzle.move(self.puzzle.undo_moves[move])
+            self.update_board()
+
+
 def main():
     puzzle = Puzzle8()
     puzzle.fill_board()
-    # print('#' * 50, f'{test(puzzle) = }')
-    puzzle.display_board()
-    print('#' * 50)
-    path = puzzle.a_star()
-    if path:
-        print('Solution found:')
-        print(' -> '.join(path))
-        for move in path:
-            puzzle.move(puzzle.undo_moves[move])
-            puzzle.display_board()
-            print()
-    else:
-        print('No solution found')
+    root = tk.Tk()
+    gui = PuzzleGUI(root, puzzle)
+    root.mainloop()
+    # puzzle.display_board()
+    # print('#' * 50)
+    # path = puzzle.a_star()
+    # if path:
+    #     print('Solution found:')
+    #     print(' -> '.join(path))
+    #     for move in path:
+    #         puzzle.move(puzzle.undo_moves[move])
+    #         puzzle.display_board()
+    #         print()
+    # else:
+    #     print('No solution found')
 
 
 if __name__ == '__main__':
