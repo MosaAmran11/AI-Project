@@ -1,3 +1,4 @@
+import heapq
 import random
 
 
@@ -6,8 +7,13 @@ class Puzzle8:
         self.board = [[' ' for _ in range(3)] for _ in range(3)]
         self.numbers = [f'{i}' for i in range(1, 9)]  # Form 1 to 8
         self.numbers.append(' ')  # Add a blank slot for moving
+        self.moves = ['up', 'down', 'left', 'right']
+        self.undo_moves = {'up': 'down', 'down': 'up', 'left': 'right', 'right': 'left'}
 
-    def fill_board(self):
+    def fill_board(self, fill: list = None):
+        if fill is not None:
+            self.board = fill
+            return None
         list_of_nums = list(self.numbers)
         for row in range(len(self.board)):
             for column in range(len(self.board[0])):
@@ -19,13 +25,6 @@ class Puzzle8:
         for row in self.board:
             print(' | '.join(row))
             print('-' * 9)
-
-    def is_solved(self) -> bool:
-        return self.board == [
-            ['1', '2', '3'],
-            ['8', ' ', '4'],
-            ['7', '6', '5']
-        ]
 
     def move(self, direction: str) -> bool:
         """Move the blank slot in the given direction
@@ -65,46 +64,99 @@ class Puzzle8:
                 return True
         return False
 
-    def alpha_beta(self, is_maximizing: bool, depth: int, alpha=float('-inf'), beta=float('inf')):
-        if self.is_solved():
-            return 1
+    def manhattan_distance(self):
+        goal_positions = {
+            '1': (0, 0), '2': (0, 1), '3': (0, 2),
+            '8': (1, 0), ' ': (1, 1), '4': (1, 2),
+            '7': (2, 0), '6': (2, 1), '5': (2, 2)
+        }
+        distance = 0
+        for row in range(3):
+            for col in range(3):
+                value = self.board[row][col]
+                goal_row, goal_col = goal_positions[value]
+                distance += abs(row - goal_row) + abs(col - goal_col)
+        return distance
 
-        if depth == 0:
-            return 0
+    def a_star(self):
+        def reconstruct_path(came_from, current):
+            path = []
+            while current in came_from:
+                current, move = came_from[current]
+                path.append(self.undo_moves[move])
+            return path[::-1]
 
-        moves = ['up', 'down', 'left', 'right']
-        undo_moves = {'up': 'down', 'down': 'up', 'left': 'right', 'right': 'left'}
-        if is_maximizing:
-            best = float('-inf')
-            for move in moves:
-                if self.move(move):  # Apply the move and check if it's valid
-                    value = self.alpha_beta(False, depth - 1, alpha, beta)
-                    self.move(undo_moves[move])  # Undo the move
-                    best = max(best, value)
-                    alpha = max(alpha, best)
-                    if alpha >= beta:
+        start = tuple(tuple(row) for row in self.board)
+        goal = (
+            ('1', '2', '3'),
+            ('8', ' ', '4'),
+            ('7', '6', '5')
+        )
+        queue = []
+        heapq.heappush(queue, (0, start))
+        came_from = {}
+        g_score = {start: 0}  # g(n) = The actual cost to reach the node
+        f_score = {start: self.manhattan_distance()}  # f(n) = g(n) + h(n)
+
+        while queue:
+            _, current_board = heapq.heappop(queue)
+
+            if current_board == goal:
+                return reconstruct_path(came_from, current_board)
+
+            blank_position = None
+            for row_index, row in enumerate(current_board):
+                for col_index, col in enumerate(row):
+                    if col == ' ':
+                        blank_position = (row_index, col_index)
                         break
-            return best
-        else:
-            best = float('inf')
-            for move in moves:
-                if self.move(move):  # Apply the move and check if it's valid
-                    value = self.alpha_beta(True, depth - 1, alpha, beta)
-                    self.move(undo_moves[move])  # Undo the move
-                    best = min(best, value)
-                    beta = min(beta, best)
-                    if alpha >= beta:
-                        break
-            return best
+                if blank_position:
+                    break
+
+            row, col = blank_position
+
+            # Define the possible moves
+            moves = {
+                'up': (row - 1, col),
+                'down': (row + 1, col),
+                'left': (row, col - 1),
+                'right': (row, col + 1)
+            }
+
+            for move, (new_row, new_col) in moves.items():
+                if 0 <= new_row < 3 and 0 <= new_col < 3:
+                    new_board = [list(row) for row in current_board]  # Convert from tuple to list
+
+                    # Swap the blank slot with the new position
+                    new_board[row][col], new_board[new_row][new_col] = new_board[new_row][new_col], new_board[row][col]
+                    new_board = tuple(tuple(row) for row in new_board)  # Convert from list to tuple
+
+                    temp_g_score = g_score[current_board] + 1
+
+                    if new_board not in g_score or temp_g_score < g_score[new_board]:
+                        came_from[new_board] = (current_board, move)
+                        g_score[new_board] = temp_g_score
+                        f_score[new_board] = temp_g_score + self.manhattan_distance()
+                        heapq.heappush(queue, (f_score, new_board))
+        return None
 
 
 def main():
     puzzle = Puzzle8()
     puzzle.fill_board()
+    # print('#' * 50, f'{test(puzzle) = }')
     puzzle.display_board()
     print('#' * 50)
-    puzzle.alpha_beta(True, 362_880)  # 9! = 362,880
-    puzzle.display_board()
+    path = puzzle.a_star()
+    if path:
+        print('Solution found:')
+        print(' -> '.join(path))
+        for move in path:
+            puzzle.move(puzzle.undo_moves[move])
+            puzzle.display_board()
+            print()
+    else:
+        print('No solution found')
 
 
 if __name__ == '__main__':
